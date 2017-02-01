@@ -3,7 +3,7 @@ import yaml
 import nltk
 from sklearn.externals import joblib
 from nltk.collocations import *
-from nltk.metrics import BigramAssocMeasures
+from nltk.metrics import *
 
 from paths import POSPATH, NEGPATH, N_FEATURES, apipath
 
@@ -23,11 +23,11 @@ CLASSIFIER_FILE = apipath +'/classifier'
 
 class NBClassifier():
     def __init__(self):
-        self.bigram_measures = nltk.collocations.BigramAssocMeasures()
+        self.trigram_measures = nltk.collocations.TrigramAssocMeasures()
         self.classifier = ''
         self.get_all_words()
         self.top_words()
-        self.top_bigrams()
+        self.top_trigrams()
         self.load()
         if self.classifier is '' :
             self.train()
@@ -41,20 +41,21 @@ class NBClassifier():
         for neg in NEGYML:
             self.all_words += [word for word in nltk.word_tokenize(neg['text'])]
 
-    def top_bigrams(self, n=N_FEATURES):
-        finder = BigramCollocationFinder.from_words(self.all_words)
+    def top_trigrams(self, n=N_FEATURES):
+        finder = TrigramCollocationFinder.from_words(self.all_words)
         finder.apply_freq_filter(3)
 
-        # ignoring all bigrams which occur less than n times
-        # freq_bigrams = finder.nbest(self.bigram_measures.pmi, n)
-        freq_bigrams = finder.nbest(self.bigram_measures.chi_sq, n)
-
-        self.bigram_features = dict([(bigram, True) for bigram in freq_bigrams])
+        # ignoring all trigrams which occur less than n times
+        # freq_trigrams = finder.nbest(self.trigram_measures.pmi, n)
+        freq_trigrams = finder.nbest(self.trigram_measures.likelihood_ratio, n)
+        # freq_trigrams = finder.above_score(self.trigram_measures.likelihood_ratio,70)
+        self.trigram_features = dict([(trigram, True) for trigram in freq_trigrams])
 
     def top_words(self, n=N_FEATURES):
         freq_words = nltk.FreqDist(word for word in self.all_words)
         # self.word_features = list(self.all_words)[:n]
         freq_words = list(self.all_words)[:n]
+
         self.word_features = dict([(word, True) for word in freq_words])
 
     def document_features(self, sentence):
@@ -67,12 +68,12 @@ class NBClassifier():
         features = {}
 
         sentence_words = nltk.word_tokenize(sentence)
-        finder = BigramCollocationFinder.from_words(sentence_words)
-        # sentence_bigrams = [bigram for (bigram, score) in finder.score_ngrams(self.bigram_measures.pmi)]
-        sentence_bigrams = [bigram for (bigram, score) in finder.score_ngrams(self.bigram_measures.chi_sq)]
+        finder = TrigramCollocationFinder.from_words(sentence_words)
+        # sentence_trigrams = [trigram for (trigram, score) in finder.score_ngrams(self.trigram_measures.pmi)]
+        sentence_trigrams = [trigram for (trigram, score) in finder.score_ngrams(self.trigram_measures.likelihood_ratio)]
 
-        for bigram in self.bigram_features:
-            features[bigram] = (bigram in sentence_bigrams)
+        for trigram in self.trigram_features:
+            features[trigram] = (trigram in sentence_trigrams)
 
         for word in self.word_features:
             features[word] = (word in sentence_words)
@@ -107,3 +108,5 @@ class NBClassifier():
         return nltk.classify.accuracy(self.classifier, train_set)
 
 
+n = NBClassifier()
+print n.accuracy()
